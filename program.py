@@ -10,35 +10,34 @@ class Programm:
         self.master_token = None
         self.fs_profile_is_sopped = False
         self.min_waiting_time = 0
-        self.max_waiting_time = 1
+        self.max_waiting_time = 3
         self.token_lease = 20
         self.client = None
         self.key = cluster_name + "/master_key"
 
 
-    def get_etcd_client(self):
+    def get_client(self):
         cli = None
         try:
             cli = etcd3.client(host='34.69.186.246', port=2379)
-            print(cli.status())
+            cli.status()
         except:
             print("error connection to etcd")
-        finally:
-            if cli:
-                cli.close()
-                cli = None
+            cli.close()
+            cli = None
         return cli
 
     def get_master_token(self):
         token = None
-        cli = self.get_etcd_client()
+        cli = self.get_client()
         if cli:
             token = cli.get(self.key)[0]
+            print(token)
             cli.close()
         return token
 
     def try_set_new_master_token(self):
-        cli = self.get_etcd_client()
+        cli = self.get_client()
         if cli:
             cli.put(self.key, self.my_token, lease=cli.lease(self.token_lease))
             cli.close()
@@ -47,7 +46,7 @@ class Programm:
             return False
 
     def update_master_token(self):
-        cli = self.get_etcd_client()
+        cli = self.get_client()
         if cli:
             cli.put(self.key, self.my_token, lease=cli.lease(self.token_lease))
             cli.close()
@@ -68,13 +67,16 @@ class Programm:
         time.sleep(sleep_time)
 
     def im_master(self):
-        return self.my_token == self.get_master_token()
+        remote_token = self.get_master_token()
+        print("remote token", remote_token)
+        return self.my_token == remote_token
 
 
     def watch(self):
         while True:
             self.wait()
             if self.im_master():
+                print("Im a master")
                 self.update_master_token()
             else:
                 if self.try_set_new_master_token():
